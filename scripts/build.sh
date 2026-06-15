@@ -35,15 +35,26 @@ if ! command -v xcodegen >/dev/null 2>&1; then
 fi
 xcodegen generate
 
-echo "==> 4/5 アプリをビルド（ad-hoc 署名）"
-# ※ 署名なし（CODE_SIGNING_ALLOWED=NO）だと拡張機能が pluginkit に登録されない。
-#   ローカル利用は ad-hoc 署名("-")で十分。配布時は DEVELOPMENT_TEAM 等を設定する。
+# 署名方式は環境変数で切り替え:
+#   ローカル: 未指定 → ad-hoc 署名("-")。拡張機能の登録に最低限必要。
+#   配布:     SIGN_IDENTITY="Developer ID Application" DEVELOPMENT_TEAM=XXXXXXXXXX
+SIGN_ID="${SIGN_IDENTITY:--}"
+TEAM="${DEVELOPMENT_TEAM:-}"
+SIGN_ARGS=(CODE_SIGN_IDENTITY="$SIGN_ID" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="$TEAM")
+if [ "$SIGN_ID" != "-" ]; then
+  # 公証には secure timestamp が必須（Hardened Runtime は project.yml で有効）
+  SIGN_ARGS+=(OTHER_CODE_SIGN_FLAGS="--timestamp")
+  echo "==> 4/5 アプリをビルド（署名: $SIGN_ID / team: $TEAM）"
+else
+  echo "==> 4/5 アプリをビルド（ad-hoc 署名）"
+  # ※ 署名なし（CODE_SIGNING_ALLOWED=NO）だと拡張機能が pluginkit に登録されない。
+fi
 xcodebuild \
   -project QuickLook3D.xcodeproj \
   -scheme QuickLook3D \
   -configuration Release \
   -derivedDataPath build \
-  CODE_SIGN_IDENTITY="-" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="" \
+  "${SIGN_ARGS[@]}" \
   build
 
 APP="build/Build/Products/Release/QuickLook3D.app"

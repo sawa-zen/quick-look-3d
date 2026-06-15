@@ -16,5 +16,10 @@ DerivedData/
 *.xcuserstate
 xcuserdata/
 
+# --- 配布物 / 署名 ---
+*.dmg
+*.p12
+build.keychain
+
 # --- macOS ---
 .DS_Store

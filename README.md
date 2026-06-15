@@ -162,8 +162,7 @@ Xcode で `QuickLook3D` スキームを Run すると、ビルド時に renderer
 
 ### 署名
 自分の Mac で使うだけなら署名不要（`CODE_SIGN_IDENTITY="-"` で Sign to Run Locally）。
-他人に配布する場合は Apple Developer Program 加入と公証（Notarization）が必要。
-`project.yml` の `DEVELOPMENT_TEAM` / `CODE_SIGN_IDENTITY` を設定すること。
+他人に配布する場合は Apple Developer Program 加入と公証（Notarization）が必要 → 下記。
 
 ### VRM バージョン
 `@pixiv/three-vrm` は VRM 0.x / 1.0 両対応。0.x は `VRMUtils.rotateVRM0()` で座標系を補正する。
@@ -188,6 +187,44 @@ Xcode で `QuickLook3D` スキームを Run すると、ビルド時に renderer
 - [@pixiv/three-vrm](https://github.com/pixiv/three-vrm)
 
 ---
+
+## 配布（署名・公証）
+
+他人の Mac で素直に動かすには **Apple Developer Program**（年 ¥12,980 / US$99）に加入し、
+**Developer ID 署名 + 公証（Notarization）** が必要。未署名 / ad-hoc 署名だと Gatekeeper に
+弾かれ、quarantine 付きだとサンドボックスの拡張機能が読み込まれない。
+
+### 自動（GitHub Actions）
+
+`v*` タグを push すると `.github/workflows/release.yml` が
+**署名 → 公証 → `.dmg` 作成 → Release 添付**まで自動で行う。事前にリポジトリの
+Secrets を登録しておくこと:
+
+| Secret | 内容 |
+|---|---|
+| `MACOS_CERTIFICATE` | Developer ID Application 証明書(.p12)を base64 化（`base64 -i cert.p12 \| pbcopy`） |
+| `MACOS_CERTIFICATE_PWD` | 上記 .p12 のパスワード |
+| `KEYCHAIN_PASSWORD` | 一時キーチェーン用の任意のパスワード |
+| `APPLE_TEAM_ID` | Team ID（10文字） |
+| `NOTARY_APPLE_ID` | 公証用 Apple ID（メールアドレス） |
+| `NOTARY_PASSWORD` | App 用パスワード（appleid.apple.com で発行） |
+
+```bash
+git tag v1.0.0 && git push origin v1.0.0   # → Release に署名済み .dmg が付く
+```
+
+### 手動
+
+```bash
+# 1) Developer ID 署名でビルド
+SIGN_IDENTITY="Developer ID Application" DEVELOPMENT_TEAM=XXXXXXXXXX ./scripts/build.sh
+# 2) 公証して .dmg を作成（staple まで）
+APPLE_TEAM_ID=XXXXXXXXXX NOTARY_APPLE_ID=you@example.com NOTARY_PASSWORD=app-specific-pw \
+  ./scripts/notarize.sh
+```
+
+> 公証認証は App 用パスワードの代わりに App Store Connect API キー
+> （`--key` / `--key-id` / `--issuer`）も使える。
 
 ## ライセンス
 

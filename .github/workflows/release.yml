@@ -1,0 +1,67 @@
+name: Release
+
+# v* タグを push（または手動実行）すると、署名 → 公証 → .dmg を作って
+# GitHub Release に添付する。
+#
+# 事前に登録が必要な Secrets（Apple Developer Program 加入後）:
+#   MACOS_CERTIFICATE      … Developer ID Application 証明書(.p12)を base64 化した文字列
+#                            base64 -i cert.p12 | pbcopy
+#   MACOS_CERTIFICATE_PWD  … 上記 .p12 のパスワード
+#   KEYCHAIN_PASSWORD      … 一時キーチェーン用の任意のパスワード
+#   APPLE_TEAM_ID          … Team ID（10文字）
+#   NOTARY_APPLE_ID        … 公証用 Apple ID（メールアドレス）
+#   NOTARY_PASSWORD        … App 用パスワード（appleid.apple.com で発行）
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Import Developer ID certificate
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          echo "$MACOS_CERTIFICATE" | base64 --decode > cert.p12
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security set-keychain-settings -lut 21600 build.keychain
+          security import cert.p12 -k build.keychain -P "$MACOS_CERTIFICATE_PWD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+          rm cert.p12
+
+      - name: Build (Developer ID signed)
+        env:
+          SIGN_IDENTITY: "Developer ID Application"
+          DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
+        run: ./scripts/build.sh
+
+      - name: Notarize & staple
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          NOTARY_APPLE_ID: ${{ secrets.NOTARY_APPLE_ID }}
+          NOTARY_PASSWORD: ${{ secrets.NOTARY_PASSWORD }}
+        run: ./scripts/notarize.sh
+
+      - name: Attach .dmg to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: QuickLook3D.dmg
