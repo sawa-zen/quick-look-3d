@@ -44,7 +44,7 @@ SIGN_ARGS=(CODE_SIGN_IDENTITY="$SIGN_ID" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM
 if [ "$SIGN_ID" != "-" ]; then
   # 公証には secure timestamp が必須（Hardened Runtime は project.yml で有効）
   SIGN_ARGS+=(OTHER_CODE_SIGN_FLAGS="--timestamp")
-  echo "==> 4/5 アプリをビルド（署名: $SIGN_ID / team: $TEAM）"
+  echo "==> 4/5 アプリをビルド（署名: ${SIGN_ID} / team: ${TEAM}）"
 else
   echo "==> 4/5 アプリをビルド（ad-hoc 署名）"
   # ※ 署名なし（CODE_SIGNING_ALLOWED=NO）だと拡張機能が pluginkit に登録されない。
