@@ -22,7 +22,13 @@ struct ContentView: View {
             Text("Quick Look 3D")
                 .font(.title.bold())
 
-            Text("Launch this app once, then select a\n.vrm / .vrma / .glb / .fbx in Finder and press Space\nto preview it in 3D.")
+            Text("Setup complete — you can close this window.\nThe Quick Look extension stays registered, even after a restart.")
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text("Select a .vrm / .vrma / .glb / .fbx in Finder\nand press Space to preview it in 3D.")
+                .font(.callout)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
