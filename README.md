@@ -11,9 +11,7 @@ automatically.
 
 ## Demo
 
-<video src="https://github.com/sawa-zen/quick-look-3d/raw/main/docs/demo.mp4" controls width="100%"></video>
-
-> If the player above doesn't load, [watch the demo (mp4)](https://github.com/sawa-zen/quick-look-3d/raw/main/docs/demo.mp4).
+![Quick Look 3D demo](docs/demo.gif)
 
 ---
 
