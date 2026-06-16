@@ -6,9 +6,9 @@
     <true/>
     <key>com.apple.security.files.user-selected.read-only</key>
     <true/>
-    <!-- WKWebView はローカル file:// を読むだけでも Network プロセスを起動する。
-         この権限が無いと Network プロセスが起動拒否され WebContent ごとクラッシュし、
-         ページが永久に読み込まれない（didFinish が呼ばれない）。 -->
+    <!-- WKWebView spins up a Network process even just to read a local file://.
+         Without this entitlement that process is denied, the WebContent process crashes,
+         and the page never finishes loading (didFinish is never called). -->
     <key>com.apple.security.network.client</key>
     <true/>
 </dict>

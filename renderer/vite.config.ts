@@ -1,10 +1,9 @@
 import { defineConfig } from 'vite';
 import { viteSingleFile } from 'vite-plugin-singlefile';
 
-// WKWebView の loadFileURL では、別ファイルの JS/CSS を読み込む際に
-// allowingReadAccessTo の指定がシビアで詰まりやすい。
-// そこで vite-plugin-singlefile で JS/CSS をすべて index.html に
-// インライン化し、単一ファイルだけ配置すれば動く構成にしている。
+// With WKWebView's loadFileURL, loading separate JS/CSS files is finicky because
+// allowingReadAccessTo has to be set just right. So we inline all JS/CSS into
+// index.html with vite-plugin-singlefile, so dropping in a single file just works.
 export default defineConfig({
   base: './',
   plugins: [viteSingleFile()],

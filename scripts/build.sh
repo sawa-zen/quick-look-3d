@@ -1,55 +1,55 @@
 #!/usr/bin/env bash
-# 3D Quick Look プラグインを一括ビルド・インストールするスクリプト。
-#   前提: フル Xcode / xcodegen / node がインストール済み
-#   使い方: ./scripts/build.sh
+# One-shot build script for the 3D Quick Look plugin.
+#   Requires: full Xcode / xcodegen / node installed
+#   Usage: ./scripts/build.sh
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-# App Extension のビルドにはフル Xcode が必要。xcode-select が
-# CommandLineTools を指していても、ここでフル Xcode を自動検出して使う。
+# Building an App Extension needs full Xcode. Even if xcode-select points at
+# CommandLineTools, auto-detect and use full Xcode here.
 if [ ! -d "$(xcode-select -p 2>/dev/null)/Platforms" ]; then
   if [ -d "/Applications/Xcode.app/Contents/Developer" ]; then
     export DEVELOPER_DIR="/Applications/Xcode.app/Contents/Developer"
-    echo "==> フル Xcode を使用: $DEVELOPER_DIR"
+    echo "==> Using full Xcode: $DEVELOPER_DIR"
   else
-    echo "エラー: フル Xcode が見つかりません。App Store からインストールしてください" >&2
+    echo "error: full Xcode not found. Install it from the App Store." >&2
     exit 1
   fi
 fi
 
-echo "==> 1/5 renderer をビルド"
+echo "==> 1/5 Build renderer"
 ( cd renderer && [ -d node_modules ] || npm install; npm run build )
 
-echo "==> 2/5 renderer を拡張機能の Resources にコピー"
+echo "==> 2/5 Copy renderer into the extension's Resources"
 DEST="QuickLook3D/Extension/Resources/renderer"
 mkdir -p "$DEST"
 rm -rf "${DEST:?}"/*
 cp -R renderer/dist/* "$DEST/"
 
-echo "==> 3/5 Xcode プロジェクトを生成 (xcodegen)"
+echo "==> 3/5 Generate the Xcode project (xcodegen)"
 if ! command -v xcodegen >/dev/null 2>&1; then
-  echo "エラー: xcodegen が見つかりません。'brew install xcodegen' を実行してください" >&2
+  echo "error: xcodegen not found. Run 'brew install xcodegen'." >&2
   exit 1
 fi
 xcodegen generate
 
-# 署名方式は環境変数で切り替え:
-#   ローカル: 未指定 → ad-hoc 署名("-")。拡張機能の登録に最低限必要。
-#   配布:     SIGN_IDENTITY="Developer ID Application" DEVELOPMENT_TEAM=XXXXXXXXXX
+# Signing mode is chosen via env vars:
+#   local:        unset → ad-hoc signing ("-"). The minimum needed to register the extension.
+#   distribution: SIGN_IDENTITY="Developer ID Application" DEVELOPMENT_TEAM=XXXXXXXXXX
 SIGN_ID="${SIGN_IDENTITY:--}"
 TEAM="${DEVELOPMENT_TEAM:-}"
 SIGN_ARGS=(CODE_SIGN_IDENTITY="$SIGN_ID" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="$TEAM")
 if [ "$SIGN_ID" != "-" ]; then
-  # 公証には secure timestamp が必須（Hardened Runtime は project.yml で有効）。
-  # また xcodebuild build は get-task-allow を自動注入し公証で弾かれるため、
-  # CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO で注入を止める（配布用の肝）。
+  # Notarization requires a secure timestamp (Hardened Runtime is enabled in project.yml).
+  # Also, `xcodebuild build` auto-injects get-task-allow, which notarization rejects, so
+  # CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO stops that injection (key for distribution).
   SIGN_ARGS+=(OTHER_CODE_SIGN_FLAGS="--timestamp" CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO)
-  echo "==> 4/5 アプリをビルド（署名: ${SIGN_ID} / team: ${TEAM}）"
+  echo "==> 4/5 Build the app (signing: ${SIGN_ID} / team: ${TEAM})"
 else
-  echo "==> 4/5 アプリをビルド（ad-hoc 署名）"
-  # ※ 署名なし（CODE_SIGNING_ALLOWED=NO）だと拡張機能が pluginkit に登録されない。
+  echo "==> 4/5 Build the app (ad-hoc signing)"
+  # NOTE: building unsigned (CODE_SIGNING_ALLOWED=NO) means the extension won't register with pluginkit.
 fi
 xcodebuild \
   -project QuickLook3D.xcodeproj \
@@ -60,11 +60,11 @@ xcodebuild \
   build
 
 APP="build/Build/Products/Release/QuickLook3D.app"
-echo "==> 5/5 ビルド完了: $APP"
+echo "==> 5/5 Build complete: $APP"
 echo
-echo "次の手順でインストール・確認:"
-echo "  1) 生成された $APP を /Applications にコピーして一度起動する"
-echo "     (Quick Look 拡張機能が macOS に登録される)"
-echo "  2) 拡張機能を有効化:  システム設定 > 一般 > ログイン項目と機能拡張 > Quick Look"
-echo "  3) Quick Look を再読み込み:  qlmanage -r && qlmanage -r cache"
-echo "  4) 動作確認:  qlmanage -p /path/to/model.vrm  (.vrma / .glb / .fbx も可)"
+echo "Install and verify:"
+echo "  1) Copy $APP to /Applications and launch it once"
+echo "     (registers the Quick Look extension with macOS)"
+echo "  2) Enable the extension: System Settings > General > Login Items & Extensions > Quick Look"
+echo "  3) Reload Quick Look:  qlmanage -r && qlmanage -r cache"
+echo "  4) Test:  qlmanage -p /path/to/model.vrm  (.vrma / .glb / .fbx also work)"

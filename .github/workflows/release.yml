@@ -1,16 +1,16 @@
 name: Release
 
-# v* タグを push（または手動実行）すると、署名 → 公証 → .dmg を作って
-# GitHub Release に添付する。
+# Pushing a v* tag (or a manual run) signs → notarizes → builds the .dmg and
+# attaches it to a GitHub Release.
 #
-# 事前に登録が必要な Secrets（Apple Developer Program 加入後）:
-#   MACOS_CERTIFICATE      … Developer ID Application 証明書(.p12)を base64 化した文字列
+# Secrets to register beforehand (after joining the Apple Developer Program):
+#   MACOS_CERTIFICATE      … Developer ID Application cert (.p12) base64-encoded
 #                            base64 -i cert.p12 | pbcopy
-#   MACOS_CERTIFICATE_PWD  … 上記 .p12 のパスワード
-#   KEYCHAIN_PASSWORD      … 一時キーチェーン用の任意のパスワード
-#   APPLE_TEAM_ID          … Team ID（10文字）
-#   NOTARY_APPLE_ID        … 公証用 Apple ID（メールアドレス）
-#   NOTARY_PASSWORD        … App 用パスワード（appleid.apple.com で発行）
+#   MACOS_CERTIFICATE_PWD  … password for that .p12
+#   KEYCHAIN_PASSWORD      … any password for the temporary keychain
+#   APPLE_TEAM_ID          … Team ID (10 chars)
+#   NOTARY_APPLE_ID        … Apple ID for notarization (email)
+#   NOTARY_PASSWORD        … app-specific password (created at appleid.apple.com)
 
 on:
   push:
@@ -22,8 +22,8 @@ permissions:
 
 jobs:
   release:
-    # XcodeGen が生成する .xcodeproj は新しい形式（Xcode 16）なので、
-    # 新しい Xcode を持つランナー + latest-stable の Xcode を選ぶ。
+    # The .xcodeproj XcodeGen emits is a newer format (Xcode 16), so pick a runner
+    # with a recent Xcode plus the latest-stable Xcode.
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4

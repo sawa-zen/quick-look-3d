@@ -10,14 +10,14 @@ settings:
     MARKETING_VERSION: "1.0"
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.0"
-    # 自分の Mac で使うだけなら署名不要（Sign to Run Locally）。
-    # 配布する場合は CODE_SIGN_IDENTITY / DEVELOPMENT_TEAM を設定すること。
+    # No signing needed for your own Mac (Sign to Run Locally).
+    # For distribution, set CODE_SIGN_IDENTITY / DEVELOPMENT_TEAM.
     CODE_SIGN_IDENTITY: "-"
     CODE_SIGN_STYLE: Manual
 
 targets:
   # ---------------------------------------------------------------------
-  # ホストアプリ（拡張機能を同梱して配布するための器）
+  # Host app (the container that ships and distributes the extension)
   # ---------------------------------------------------------------------
   QuickLook3D:
     type: application
@@ -26,13 +26,13 @@ targets:
       - QuickLook3D/App
     info:
       path: QuickLook3D/App/Info.plist
-      # ※ Info.plist は XcodeGen が下記 properties から生成する（手書き不可）
+      # NOTE: XcodeGen generates Info.plist from the properties below (don't hand-edit it)
       properties:
         CFBundleDisplayName: 3D Quick Look
         NSPrincipalClass: NSApplication
         LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
-        # .vrm / .vrma / .fbx を OS に認識させる UTI 宣言（ホストアプリ側にも置く）
-        # .vrma は標準 UTI が無く放置すると動的 UTI になるため、自分で宣言する。
+        # UTI declarations so the OS recognizes .vrm / .vrma / .fbx (also declared on the host app).
+        # .vrma has no standard UTI; left alone it gets a dynamic UTI, so we declare our own.
         UTImportedTypeDeclarations:
           - UTTypeIdentifier: com.vrm.vrm
             UTTypeDescription: VRM 3D Avatar
@@ -66,7 +66,7 @@ targets:
         embed: true
 
   # ---------------------------------------------------------------------
-  # Quick Look プレビュー拡張機能（本体）
+  # Quick Look preview extension (the actual plugin)
   # ---------------------------------------------------------------------
   QuickLook3DExtension:
     type: app-extension
@@ -76,25 +76,25 @@ targets:
         excludes:
           - Resources
           - Info.plist
-      # Vite でビルドしたフロントを「フォルダ参照（青フォルダ）」として同梱する。
-      # こうすることでバンドル内に Resources/renderer/index.html がそのまま残り、
-      # Bundle.main.url(... subdirectory: "renderer") で参照できる。
+      # Bundle the Vite-built front end as a "folder reference (blue folder)".
+      # This keeps Resources/renderer/index.html intact inside the bundle, so it can be
+      # found via Bundle.main.url(... subdirectory: "renderer").
       - path: QuickLook3D/Extension/Resources/renderer
         type: folder
     info:
       path: QuickLook3D/Extension/Info.plist
-      # ※ Info.plist は XcodeGen が下記 properties から生成する（手書き不可）
+      # NOTE: XcodeGen generates Info.plist from the properties below (don't hand-edit it)
       properties:
         CFBundleDisplayName: 3D Quick Look
-        # Quick Look Extension としての宣言
+        # Declares this as a Quick Look extension
         NSExtension:
           NSExtensionPointIdentifier: com.apple.quicklook.preview
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).PreviewViewController
           NSExtensionAttributes:
-            # このプラグインがプレビューできる UTI
-            #   com.vrm.vrm / .vrma … 下で宣言する独自 UTI
-            #   org.khronos.glb         … macOS 標準の GLB 用 UTI（宣言不要）
-            #   com.autodesk.*.fbx      … FBX 用 UTI（環境差を吸収するため両方を登録）
+            # UTIs this plugin can preview
+            #   com.vrm.vrm / .vrma … our own UTIs declared below
+            #   org.khronos.glb      … macOS's built-in UTI for GLB (no declaration needed)
+            #   com.autodesk.*.fbx   … FBX UTIs (both registered to absorb environment differences)
             QLSupportedContentTypes:
               - com.vrm.vrm
               - com.vrm.vrma
@@ -102,8 +102,8 @@ targets:
               - com.autodesk.mac.fbx
               - com.autodesk.fbx
             QLSupportsSearchableItems: false
-        # .vrm / .vrma / .fbx 拡張子と UTI を OS に教える
-        # （.glb は macOS 標準の org.khronos.glb があるので宣言不要）
+        # Tell the OS about the .vrm / .vrma / .fbx extensions and UTIs
+        # (.glb already has macOS's built-in org.khronos.glb, so no declaration needed)
         UTImportedTypeDeclarations:
           - UTTypeIdentifier: com.vrm.vrm
             UTTypeDescription: VRM 3D Avatar
@@ -132,14 +132,14 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.sawazen.QuickLook3D.Extension
         CODE_SIGN_ENTITLEMENTS: QuickLook3D/Extension/QuickLook3DExtension.entitlements
         ENABLE_HARDENED_RUNTIME: YES
-    # ビルドのたびに renderer を作り直して Resources/renderer にコピーする。
+    # Rebuild the renderer and copy it into Resources/renderer on every build.
     preBuildScripts:
       - name: Build renderer (Vite)
         script: |
           set -e
           cd "$SRCROOT/renderer"
           if [ -z "$(which node)" ]; then
-            echo "warning: node が見つかりません。renderer のビルドをスキップします"
+            echo "warning: node not found; skipping the renderer build"
             exit 0
           fi
           [ -d node_modules ] || npm install

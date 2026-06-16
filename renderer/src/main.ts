@@ -4,8 +4,8 @@ import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { VRMLoaderPlugin, VRMUtils, type VRM } from '@pixiv/three-vrm';
 
-// WKWebView (Quick Look 拡張) から起動された場合、console を Swift 側の
-// os_log に転送する。ブラウザ単体実行時は messageHandlers が無いので無視される。
+// When launched from the WKWebView (Quick Look extension), forward the console to
+// the Swift side's os_log. In a plain browser there is no messageHandlers, so this is a no-op.
 const nativeLog = (window as any).webkit?.messageHandlers?.log;
 if (nativeLog) {
   const forward = (level: string, args: unknown[]) => {
@@ -36,7 +36,7 @@ if (nativeLog) {
 }
 
 // ---------------------------------------------------------------------------
-// セットアップ
+// Setup
 // ---------------------------------------------------------------------------
 const app = document.getElementById('app')!;
 const overlay = document.getElementById('overlay')!;
@@ -64,7 +64,7 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.1;
 controls.update();
 
-// ライティング（キーライト + フィル + 環境光）
+// Lighting (key + fill + ambient)
 const keyLight = new THREE.DirectionalLight(0xffffff, 2.0);
 keyLight.position.set(1, 2, 1.5);
 scene.add(keyLight);
@@ -76,27 +76,27 @@ scene.add(fillLight);
 scene.add(new THREE.AmbientLight(0xffffff, 0.6));
 scene.add(new THREE.HemisphereLight(0xffffff, 0x444455, 0.6));
 
-// 床のグリッド
+// Floor grid
 const grid = new THREE.GridHelper(10, 20, 0x444444, 0x2a2a2a);
 (grid.material as THREE.Material).transparent = true;
 (grid.material as THREE.Material).opacity = 0.4;
 scene.add(grid);
 
 // ---------------------------------------------------------------------------
-// ローダー
+// Loaders
 // ---------------------------------------------------------------------------
 const gltfLoader = new GLTFLoader();
 gltfLoader.register((parser) => new VRMLoaderPlugin(parser));
 const fbxLoader = new FBXLoader();
 
-// VRM でも素の glTF/GLB でも、シーンに足した root を覚えておいて差し替える
+// Remember the root added to the scene (VRM or plain glTF/GLB) so we can swap it out
 let currentRoot: THREE.Object3D | null = null;
 let currentVrm: VRM | null = null;
 let currentMixer: THREE.AnimationMixer | null = null;
 let currentSkeletonHelper: THREE.SkeletonHelper | null = null;
 const clock = new THREE.Clock();
 
-/** メッシュ（描画される面）を持つか。VRMA や スキン無し FBX は false。 */
+/** Whether it has a renderable mesh. false for VRMA / skin-less FBX. */
 function hasRenderableMesh(root: THREE.Object3D): boolean {
   let found = false;
   root.traverse((o) => {
@@ -115,10 +115,10 @@ function hideOverlay() {
   overlay.classList.add('hidden');
 }
 
-/** モデルのバウンディングボックスからカメラとターゲットを自動調整する */
+/** Fit the camera and target to the model's bounding box. */
 function frameModel(root: THREE.Object3D) {
   const box = new THREE.Box3().setFromObject(root);
-  // メッシュが無い（ボーンだけ）と box が空になるので、各ノードの位置から算出する
+  // With no mesh (bones only) the box is empty, so derive it from each node's position.
   if (box.isEmpty()) {
     const p = new THREE.Vector3();
     root.updateWorldMatrix(true, true);
@@ -127,7 +127,7 @@ function frameModel(root: THREE.Object3D) {
   const size = box.getSize(new THREE.Vector3());
   const center = box.getCenter(new THREE.Vector3());
 
-  // 全身が収まる距離を視野角から逆算
+  // Derive the distance that fits the whole model from the field of view.
   const maxDim = Math.max(size.x, size.y, size.z);
   const fov = (camera.fov * Math.PI) / 180;
   const distance = (maxDim / 2 / Math.tan(fov / 2)) * 1.4;
@@ -140,7 +140,7 @@ function frameModel(root: THREE.Object3D) {
   controls.update();
 }
 
-/** 現在表示中のモデル（VRM / glTF / FBX / VRMA どれでも）を破棄する */
+/** Dispose the currently shown model (VRM / glTF / FBX / VRMA alike). */
 function disposeCurrent() {
   if (currentMixer) {
     currentMixer.stopAllAction();
@@ -159,42 +159,42 @@ function disposeCurrent() {
   currentVrm = null;
 }
 
-/** 先頭バイトを見て FBX かどうか判定する（VRM/GLB は "glTF" マジックで始まる） */
+/** Detect FBX from the leading bytes (VRM/GLB start with the "glTF" magic). */
 function isFBX(u8: Uint8Array): boolean {
-  // バイナリ FBX: "Kaydara FBX Binary  \x00"
+  // Binary FBX: "Kaydara FBX Binary  \x00"
   const sig = 'Kaydara FBX Binary';
   let binMatch = u8.length > sig.length;
   for (let i = 0; binMatch && i < sig.length; i++) {
     if (u8[i] !== sig.charCodeAt(i)) binMatch = false;
   }
   if (binMatch) return true;
-  // ASCII FBX: 先頭付近に "FBX" を含む（GLB は 'glTF' なので該当しない）
+  // ASCII FBX: contains "FBX" near the start (GLB is 'glTF', so it won't match).
   const head = new TextDecoder().decode(u8.subarray(0, 64));
   return head.includes('FBX');
 }
 
-/** 読み込んだ root をシーンに反映する（VRM / glTF / FBX / VRMA 共通の後処理） */
+/** Add the loaded root to the scene (shared post-processing for VRM / glTF / FBX / VRMA). */
 function applyModel(
   root: THREE.Object3D,
   vrm: VRM | null,
   clips: THREE.AnimationClip[],
 ) {
-  // アニメーションクリップがあれば先頭を再生（GLB/FBX のアニメ、VRMA など）
+  // Play the first clip if any (GLB/FBX animation, VRMA, etc.).
   if (clips.length > 0) {
     currentMixer = new THREE.AnimationMixer(root);
     currentMixer.clipAction(clips[0]).play();
   }
-  // フラスタムカリングで一部メッシュが消えるのを防ぐ
+  // Disable frustum culling so meshes don't disappear unexpectedly.
   root.traverse((obj) => {
     obj.frustumCulled = false;
   });
   scene.add(root);
 
-  // メッシュが無くアニメーションだけ（VRMA / スキン無し FBX）は
-  // ボーン階層をスケルトンヘルパーで可視化する。
+  // No mesh, animation only (VRMA / skin-less FBX):
+  // visualize the bone hierarchy with a skeleton helper.
   if (!vrm && clips.length > 0 && !hasRenderableMesh(root)) {
     root.traverse((o) => {
-      // SkeletonHelper はボーンのみを線で結ぶので、ノードを Bone 扱いにする
+      // SkeletonHelper only links bones, so mark each node as a bone.
       if (o !== root) (o as unknown as { isBone: boolean }).isBone = true;
     });
     currentSkeletonHelper = new THREE.SkeletonHelper(root);
@@ -226,14 +226,14 @@ async function loadModelFromArrayBuffer(buffer: ArrayBuffer) {
     const gltf = await gltfLoader.loadAsync(url);
     URL.revokeObjectURL(url);
 
-    // VRM プラグインが解釈できれば userData.vrm が入る。無ければ素の glTF/GLB。
-    // VRMA（メッシュ無し・アニメーションのみ）は vrm=null + animations あり となり、
-    // applyModel 側でスケルトン表示に回る。
+    // The VRM plugin sets userData.vrm when it can parse it; otherwise plain glTF/GLB.
+    // A VRMA (no mesh, animation only) ends up vrm=null + animations present, and
+    // applyModel routes it to the skeleton view.
     const vrm = (gltf.userData.vrm as VRM | undefined) ?? null;
     if (vrm) {
       VRMUtils.removeUnnecessaryVertices(gltf.scene);
       VRMUtils.combineSkeletons(gltf.scene);
-      VRMUtils.rotateVRM0(vrm); // VRM 0.x の座標系（Z+ 向き）を補正
+      VRMUtils.rotateVRM0(vrm); // fix VRM 0.x coordinate system (faces +Z)
     }
     applyModel(vrm ? vrm.scene : gltf.scene, vrm, vrm ? [] : gltf.animations);
     console.log(
@@ -257,8 +257,8 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
 }
 
 // ---------------------------------------------------------------------------
-// Swift 側（WKWebView）からの受け口
-//   window.postMessage({ type: 'loadVRM', base64 }) で受け取る
+// Entry point from the Swift side (WKWebView)
+//   received via window.postMessage({ type: 'loadVRM', base64 })
 // ---------------------------------------------------------------------------
 window.addEventListener('message', (event) => {
   if (event.data?.type !== 'loadVRM') return;
@@ -268,9 +268,9 @@ window.addEventListener('message', (event) => {
 
 console.log('renderer booted, WebGL context =', !!renderer.getContext());
 
-// ブラウザでの開発用フォールバック ---------------------------------------
-// 1) ?url=... が付いていればそれを読み込む
-// 2) .vrm ファイルをウィンドウにドラッグ&ドロップして読み込む
+// Browser dev fallbacks ---------------------------------------------------
+// 1) load ?url=... if present
+// 2) load a file dropped onto the window
 (function devFallbacks() {
   const params = new URLSearchParams(location.search);
   const url = params.get('url');
@@ -294,14 +294,14 @@ console.log('renderer booted, WebGL context =', !!renderer.getContext());
 })();
 
 // ---------------------------------------------------------------------------
-// レンダリングループ
+// Render loop
 // ---------------------------------------------------------------------------
 function animate() {
   requestAnimationFrame(animate);
   const delta = clock.getDelta();
   controls.update();
-  if (currentVrm) currentVrm.update(delta); // 揺れもの・表情などの更新
-  if (currentMixer) currentMixer.update(delta); // glTF/GLB のアニメーション
+  if (currentVrm) currentVrm.update(delta); // update spring bones, expressions, etc.
+  if (currentMixer) currentMixer.update(delta); // glTF/GLB animation
   renderer.render(scene, camera);
 }
 animate();

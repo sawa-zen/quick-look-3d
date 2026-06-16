@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// ホストアプリ本体。
-/// Quick Look Extension はアプリに同梱して配布する必要があるため存在するが、
-/// アプリ自体の機能は最小限（説明を表示するだけ）。
+/// The host app.
+/// It exists only because a Quick Look extension must be shipped inside an app;
+/// the app itself does the bare minimum (just shows an explanation).
 @main
 struct QuickLook3DApp: App {
     var body: some Scene {

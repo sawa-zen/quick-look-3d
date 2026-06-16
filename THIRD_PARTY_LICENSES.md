@@ -1,10 +1,10 @@
 # Third-Party Licenses
 
-このプロジェクトが配布物（`renderer/dist/index.html` にインライン同梱されるフロントエンド）
-に含むサードパーティソフトウェアと、そのライセンスです。いずれも MIT License です。
+Third-party software included in the distributed artifact (the front end inlined into
+`renderer/dist/index.html`), and their licenses. All are MIT License.
 
-> ビルド時のみ使用するツール（Vite, TypeScript, vite-plugin-singlefile など）は
-> 配布バイナリには含まれないため、ここには記載していません。
+> Build-time-only tools (Vite, TypeScript, vite-plugin-singlefile, etc.) are not included
+> in the distributed binary, so they are not listed here.
 
 ---
 
@@ -76,8 +76,8 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 Copyright (c) Arjun Barrett — MIT License
 https://github.com/101arrowz/fflate
 
-three.js の `FBXLoader` が利用する圧縮ライブラリ。three.js のディストリビューションに
-同梱される形で配布物に含まれます。
+A compression library used by three.js's `FBXLoader`. It ships as part of the three.js
+distribution and is therefore included in the artifact.
 
 ```
 MIT License
