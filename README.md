@@ -29,7 +29,7 @@ Select a supported file in Finder and press **Space** (or right-click → Quick 
 |---|---|
 | `.vrm` | VRM avatar (0.x / 1.0) |
 | `.vrma` | VRM animation. No mesh, so the skeleton is shown and the animation plays |
-| `.glb` | glTF binary. Plays embedded animation if present |
+| `.glb` | glTF binary (Draco-compressed meshes included). Plays embedded animation if present |
 | `.fbx` | FBX model. Plays embedded animation if present |
 
 - Drag to rotate, scroll to zoom

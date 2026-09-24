@@ -32,6 +32,9 @@ Finder (Space key)
   The leading magic bytes decide FBX vs. glTF: FBX goes through `FBXLoader`, everything else
   through `GLTFLoader`. On the glTF side, the presence of `userData.vrm` splits VRM from
   plain glTF.
+- Draco-compressed glTF (`KHR_draco_mesh_compression`) is decoded with three.js's
+  `DRACOLoader`. Its WASM decoder is inlined into `index.html` by `renderer/src/draco.ts`
+  (instead of being fetched from a `decoderPath`), so no extra asset files are needed.
 - Files with no mesh (`.vrma`, skin-less FBX) are visualized as a stick figure via
   `THREE.SkeletonHelper`, and the animation plays. No default avatar is bundled — so there
   are no licensing or bundle-size concerns.
