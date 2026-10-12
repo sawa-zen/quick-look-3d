@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { VRMLoaderPlugin, VRMUtils, type VRM } from '@pixiv/three-vrm';
 
@@ -86,6 +87,7 @@ scene.add(grid);
 // Loaders
 // ---------------------------------------------------------------------------
 const gltfLoader = new GLTFLoader();
+gltfLoader.setMeshoptDecoder(MeshoptDecoder); // EXT_meshopt_compression (e.g. TripoAI / gltfpack output)
 gltfLoader.register((parser) => new VRMLoaderPlugin(parser));
 const fbxLoader = new FBXLoader();
 
