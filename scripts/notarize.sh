@@ -17,6 +17,8 @@ DMG="QuickLook3D.dmg"
 : "${APPLE_TEAM_ID:?APPLE_TEAM_ID is not set}"
 : "${NOTARY_APPLE_ID:?NOTARY_APPLE_ID is not set}"
 : "${NOTARY_PASSWORD:?NOTARY_PASSWORD is not set}"
+# notarytool reads the password from the environment (@env:) so it never appears in `ps`.
+export NOTARY_PASSWORD
 
 if [ ! -d "$APP" ]; then
   echo "error: $APP not found. Run build.sh with signing first." >&2
@@ -40,7 +42,7 @@ echo "==> Submit for notarization (wait until done)"
 SUBMIT_OUT=$(xcrun notarytool submit "$DMG" \
   --apple-id "$NOTARY_APPLE_ID" \
   --team-id "$APPLE_TEAM_ID" \
-  --password "$NOTARY_PASSWORD" \
+  --password "@env:NOTARY_PASSWORD" \
   --wait 2>&1)
 echo "$SUBMIT_OUT"
 SUB_ID=$(printf '%s\n' "$SUBMIT_OUT" | awk '/id:/{print $2; exit}')
@@ -50,7 +52,7 @@ if ! printf '%s\n' "$SUBMIT_OUT" | grep -q "status: Accepted"; then
   xcrun notarytool log "$SUB_ID" \
     --apple-id "$NOTARY_APPLE_ID" \
     --team-id "$APPLE_TEAM_ID" \
-    --password "$NOTARY_PASSWORD" || true
+    --password "@env:NOTARY_PASSWORD" || true
   exit 1
 fi
 

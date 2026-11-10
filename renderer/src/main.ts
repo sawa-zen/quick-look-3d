@@ -261,6 +261,9 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
 //   received via window.postMessage({ type: 'loadVRM', base64 })
 // ---------------------------------------------------------------------------
 window.addEventListener('message', (event) => {
+  // Only accept messages posted by this window itself (the Swift side injects via
+  // evaluateJavaScript, which runs in this window). Ignores messages from iframes or other origins.
+  if (event.source !== window) return;
   if (event.data?.type !== 'loadVRM') return;
   console.log('received loadVRM message, base64 length =', event.data.base64?.length);
   void loadModelFromArrayBuffer(base64ToArrayBuffer(event.data.base64));

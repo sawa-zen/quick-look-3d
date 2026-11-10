@@ -20,7 +20,8 @@ if [ ! -d "$(xcode-select -p 2>/dev/null)/Platforms" ]; then
 fi
 
 echo "==> 1/5 Build renderer"
-( cd renderer && [ -d node_modules ] || npm install; npm run build )
+# ci: exact lockfile versions. --ignore-scripts: no dependency lifecycle hooks run.
+( cd renderer && npm ci --ignore-scripts && npm run build )
 
 echo "==> 2/5 Copy renderer into the extension's Resources"
 DEST="QuickLook3D/Extension/Resources/renderer"

@@ -140,10 +140,10 @@ targets:
           set -e
           cd "$SRCROOT/renderer"
           if [ -z "$(which node)" ]; then
-            echo "warning: node not found; skipping the renderer build"
-            exit 0
+            echo "error: node not found; the renderer cannot be built" >&2
+            exit 1
           fi
-          [ -d node_modules ] || npm install
+          [ -d node_modules ] || npm ci --ignore-scripts
           npm run build
           DEST="$SRCROOT/QuickLook3D/Extension/Resources/renderer"
           mkdir -p "$DEST"
