@@ -8,9 +8,15 @@ import WebKit
 ///   log stream --predicate 'subsystem == "com.sawazen.QuickLook3D"'
 private let qlLog = Logger(subsystem: "com.sawazen.QuickLook3D", category: "preview")
 
+/// Logged as `.private` so file names, parser errors, and JS strings are redacted
+/// in the unified log unless a developer enables private data logging.
 private func debugLog(_ message: String) {
-    qlLog.log("\(message, privacy: .public)")
+    qlLog.log("\(message, privacy: .private)")
 }
+
+/// Largest model we will preview. The bytes are held several times over on the way to
+/// WebGL (Data, base64 string, JS string, ArrayBuffer), so keep this conservative.
+private let maxModelBytes = 128 * 1024 * 1024
 
 /// View controller that previews 3D models in Quick Look.
 ///
@@ -31,7 +37,9 @@ final class PreviewViewController: NSViewController, QLPreviewingController {
 
         // Receiver that forwards the JS console to os_log (for debugging).
         // Inspect with `log stream --predicate 'subsystem == "com.sawazen.QuickLook3D"'`.
-        config.userContentController.add(self, name: "log")
+        // Weak proxy: the content controller retains its handler, so passing `self`
+        // directly would create a cycle (controller -> webView -> config -> controller).
+        config.userContentController.add(WeakScriptMessageHandler(self), name: "log")
 
         webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = self
@@ -50,12 +58,32 @@ final class PreviewViewController: NSViewController, QLPreviewingController {
         let needsStop = url.startAccessingSecurityScopedResource()
         defer { if needsStop { url.stopAccessingSecurityScopedResource() } }
 
-        guard let data = try? Data(contentsOf: url) else {
+        let tooLarge = NSError(
+            domain: "QuickLook3D",
+            code: -3,
+            userInfo: [NSLocalizedDescriptionKey: "The file is too large to preview (or its size is unknown)."]
+        )
+        // Fail closed: if the size cannot be determined, do not read the file.
+        // Resolve symlinks first, because resourceValues reports the link's own size.
+        let fileURL = url.resolvingSymlinksInPath()
+        guard let size = (try? fileURL.resourceValues(forKeys: [.fileSizeKey]))?.fileSize,
+              size <= maxModelBytes else {
+            handler(tooLarge)
+            return
+        }
+
+        // Memory-map so an oversized file is not pulled into memory before the check below.
+        guard let data = try? Data(contentsOf: fileURL, options: .mappedIfSafe) else {
             handler(NSError(
                 domain: "QuickLook3D",
                 code: -1,
                 userInfo: [NSLocalizedDescriptionKey: "Could not read the file."]
             ))
+            return
+        }
+        // Check what was actually read (the file may have changed since the size check).
+        guard data.count <= maxModelBytes else {
+            handler(tooLarge)
             return
         }
         pendingBase64 = data.base64EncodedString()
@@ -113,6 +141,19 @@ extension PreviewViewController: WKNavigationDelegate {
 }
 
 // MARK: - WKScriptMessageHandler (JS console → os_log)
+
+/// Holds the view controller weakly so WKUserContentController does not keep it alive.
+private final class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
+    private weak var target: WKScriptMessageHandler?
+
+    init(_ target: WKScriptMessageHandler) {
+        self.target = target
+    }
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        target?.userContentController(userContentController, didReceive: message)
+    }
+}
 
 extension PreviewViewController: WKScriptMessageHandler {
     func userContentController(
