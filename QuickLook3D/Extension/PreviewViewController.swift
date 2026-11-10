@@ -14,8 +14,9 @@ private func debugLog(_ message: String) {
     qlLog.log("\(message, privacy: .private)")
 }
 
-/// Largest model we will read and base64-encode in memory (the encoded string is ~1.33x).
-private let maxModelBytes = 256 * 1024 * 1024
+/// Largest model we will preview. The bytes are held several times over on the way to
+/// WebGL (Data, base64 string, JS string, ArrayBuffer), so keep this conservative.
+private let maxModelBytes = 128 * 1024 * 1024
 
 /// View controller that previews 3D models in Quick Look.
 ///
@@ -57,22 +58,32 @@ final class PreviewViewController: NSViewController, QLPreviewingController {
         let needsStop = url.startAccessingSecurityScopedResource()
         defer { if needsStop { url.stopAccessingSecurityScopedResource() } }
 
-        let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
-        guard size <= maxModelBytes else {
-            handler(NSError(
-                domain: "QuickLook3D",
-                code: -3,
-                userInfo: [NSLocalizedDescriptionKey: "The file is too large to preview."]
-            ))
+        let tooLarge = NSError(
+            domain: "QuickLook3D",
+            code: -3,
+            userInfo: [NSLocalizedDescriptionKey: "The file is too large to preview (or its size is unknown)."]
+        )
+        // Fail closed: if the size cannot be determined, do not read the file.
+        // Resolve symlinks first, because resourceValues reports the link's own size.
+        let fileURL = url.resolvingSymlinksInPath()
+        guard let size = (try? fileURL.resourceValues(forKeys: [.fileSizeKey]))?.fileSize,
+              size <= maxModelBytes else {
+            handler(tooLarge)
             return
         }
 
-        guard let data = try? Data(contentsOf: url) else {
+        // Memory-map so an oversized file is not pulled into memory before the check below.
+        guard let data = try? Data(contentsOf: fileURL, options: .mappedIfSafe) else {
             handler(NSError(
                 domain: "QuickLook3D",
                 code: -1,
                 userInfo: [NSLocalizedDescriptionKey: "Could not read the file."]
             ))
+            return
+        }
+        // Check what was actually read (the file may have changed since the size check).
+        guard data.count <= maxModelBytes else {
+            handler(tooLarge)
             return
         }
         pendingBase64 = data.base64EncodedString()

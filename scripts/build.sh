@@ -21,7 +21,16 @@ fi
 
 echo "==> 1/5 Build renderer"
 # ci: exact lockfile versions. --ignore-scripts: no dependency lifecycle hooks run.
-( cd renderer && npm ci --ignore-scripts && npm run build )
+# SKIP_RENDERER_BUILD=1 reuses an existing renderer/dist (the release workflow builds
+# it before the signing certificate is imported, so no npm/vite code runs next to the key).
+if [ "${SKIP_RENDERER_BUILD:-}" = "1" ]; then
+  # Must be a real production build: the CSP meta tag is only injected by `vite build`.
+  grep -q 'Content-Security-Policy' renderer/dist/index.html 2>/dev/null \
+    || { echo "error: renderer/dist/index.html is missing or has no CSP (not a production build)" >&2; exit 1; }
+  echo "    (reusing renderer/dist)"
+else
+  ( cd renderer && npm ci --ignore-scripts && npm run build )
+fi
 
 echo "==> 2/5 Copy renderer into the extension's Resources"
 DEST="QuickLook3D/Extension/Resources/renderer"
@@ -30,11 +39,18 @@ rm -rf "${DEST:?}"/*
 cp -R renderer/dist/* "$DEST/"
 
 echo "==> 3/5 Generate the Xcode project (xcodegen)"
-if ! command -v xcodegen >/dev/null 2>&1; then
-  echo "error: xcodegen not found. Run 'brew install xcodegen'." >&2
-  exit 1
+# SKIP_XCODEGEN=1 reuses an already generated project (the release workflow generates
+# it before the signing certificate is imported).
+if [ "${SKIP_XCODEGEN:-}" = "1" ]; then
+  [ -d QuickLook3D.xcodeproj ] || { echo "error: QuickLook3D.xcodeproj not found" >&2; exit 1; }
+  echo "    (reusing QuickLook3D.xcodeproj)"
+else
+  if ! command -v xcodegen >/dev/null 2>&1; then
+    echo "error: xcodegen not found. Run 'brew install xcodegen'." >&2
+    exit 1
+  fi
+  xcodegen generate
 fi
-xcodegen generate
 
 # Signing mode is chosen via env vars:
 #   local:        unset → ad-hoc signing ("-"). The minimum needed to register the extension.
@@ -58,6 +74,7 @@ xcodebuild \
   -configuration Release \
   -derivedDataPath build \
   "${SIGN_ARGS[@]}" \
+  SKIP_RENDERER_BUILD=1 \
   build
 
 APP="build/Build/Products/Release/QuickLook3D.app"

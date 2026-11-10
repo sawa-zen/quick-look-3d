@@ -138,12 +138,26 @@ targets:
       - name: Build renderer (Vite)
         script: |
           set -e
+          # scripts/build.sh builds and copies the renderer itself, then passes
+          # SKIP_RENDERER_BUILD=1 so no npm/vite code runs during the signed build.
+          if [ "${SKIP_RENDERER_BUILD:-}" = "1" ]; then
+            # The copied bundle must be a production build (CSP is injected by `vite build`).
+            if ! grep -q 'Content-Security-Policy' "$SRCROOT/QuickLook3D/Extension/Resources/renderer/index.html" 2>/dev/null; then
+              echo "error: SKIP_RENDERER_BUILD=1 but Resources/renderer/index.html is missing or has no CSP" >&2
+              exit 1
+            fi
+            echo "renderer build skipped (SKIP_RENDERER_BUILD=1)"
+            exit 0
+          fi
           cd "$SRCROOT/renderer"
           if [ -z "$(which node)" ]; then
             echo "error: node not found; the renderer cannot be built" >&2
             exit 1
           fi
-          [ -d node_modules ] || npm ci --ignore-scripts
+          # Reinstall when node_modules is missing or older than the lockfile.
+          if [ ! -f node_modules/.package-lock.json ] || [ package-lock.json -nt node_modules/.package-lock.json ]; then
+            npm ci --ignore-scripts
+          fi
           npm run build
           DEST="$SRCROOT/QuickLook3D/Extension/Resources/renderer"
           mkdir -p "$DEST"
