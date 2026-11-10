@@ -87,7 +87,42 @@ scene.add(grid);
 // ---------------------------------------------------------------------------
 const gltfLoader = new GLTFLoader();
 gltfLoader.register((parser) => new VRMLoaderPlugin(parser));
-const fbxLoader = new FBXLoader();
+
+// FBX files often reference textures in a sibling folder (e.g. model.fbm/). The preview
+// only receives the model file itself, so those loads fail and the empty texture slots
+// sample as black. Once all loads have settled, drop the slots that never got an image
+// so the model shows with its plain material colour instead.
+const fbxManager = new THREE.LoadingManager();
+let fbxTextureFailed = false;
+fbxManager.onError = () => {
+  fbxTextureFailed = true;
+};
+fbxManager.onLoad = () => {
+  if (fbxTextureFailed && currentRoot) stripMissingTextures(currentRoot);
+  fbxTextureFailed = false;
+};
+const fbxLoader = new FBXLoader(fbxManager);
+
+function stripMissingTextures(root: THREE.Object3D) {
+  let stripped = 0;
+  root.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    for (const material of materials) {
+      const slots = material as unknown as Record<string, unknown>;
+      for (const key of Object.keys(slots)) {
+        const tex = slots[key] as THREE.Texture | null;
+        if (tex && tex.isTexture && !tex.image) {
+          slots[key] = null;
+          material.needsUpdate = true;
+          stripped++;
+        }
+      }
+    }
+  });
+  if (stripped > 0) console.log(`FBX: dropped ${stripped} texture slot(s) whose image could not be loaded`);
+}
 
 // Remember the root added to the scene (VRM or plain glTF/GLB) so we can swap it out
 let currentRoot: THREE.Object3D | null = null;
